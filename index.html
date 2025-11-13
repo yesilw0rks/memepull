@@ -1,0 +1,1193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Crypto Rugpull Loop Simulator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Base Styling - Deep Dark Theme */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0A0A0A; /* Very Dark Gray */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        /* iPhone Shell - Fixed height for no scrolling */
+        #iphone-shell {
+            width: 393px; 
+            height: 760px; 
+            box-shadow: 0 0 40px rgba(0, 0, 0, 0.9);
+            border: 10px solid #1a1a1a;
+            border-radius: 65px;
+            position: relative;
+            background-color: #0A0A0A; 
+            overflow: hidden; 
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Screen Area */
+        #phone-screen {
+            width: 100%;
+            height: 100%;
+            background-color: transparent;
+            position: relative;
+            overflow: hidden;
+            border-radius: 55px;
+        }
+
+        /* Dynamic Island - Fixed Black */
+        #dynamic-island {
+            width: 120px; 
+            height: 34px;
+            background-color: #000; 
+            border-radius: 18px;
+            position: absolute;
+            top: 12px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 20;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #ccc;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+            padding: 0 8px;
+        }
+        
+        /* Tab Content Wrapper for Swiping - UPDATED to 5 tabs (500% width) */
+        #tab-wrapper {
+            display: flex;
+            width: 500%; /* 5 tabs wide */
+            height: 100%;
+            transition: transform 0.3s cubic-bezier(0.25, 0.1, 0.25, 1);
+            overflow-y: hidden;
+        }
+        .tab-page {
+            width: 20%; /* 100% / 5 */
+            flex-shrink: 0;
+            color: #fff;
+            overflow-y: auto; 
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Home Bar Container (Touch-based for swiping) */
+        #home-bar-container {
+            height: 40px; 
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            position: absolute;
+            bottom: 0px;
+            width: 100%;
+            z-index: 30;
+            cursor: grab;
+            touch-action: none; 
+            opacity: 1; 
+            display: flex;
+        }
+        #home-bar {
+            width: 130px;
+            height: 5px;
+            background-color: #fff;
+            border-radius: 2.5px;
+        }
+        
+        /* Content Padding Adjustment to fit screen height */
+        #tab-wrapper > .tab-page {
+            padding-top: 60px; 
+            padding-bottom: 25px; 
+        }
+        
+        /* App Specific Styles - True Black / Deep Dark */
+        .app-wallet { background-color: #000000; } /* True Black */
+        .app-coin { background-color: #0A0A0A; }
+        .app-vault { background-color: #140a0a; } /* Hint of red for vault */
+        .app-settings { background-color: transparent; } 
+        .app-creator { background-color: #000000; }
+        
+        /* Custom Input Styling for Creation Screen */
+        .creator-input {
+            background-color: #262626; 
+            border: 1px solid #4B5563;
+            color: #E5E7EB;
+            padding: 12px;
+            border-radius: 10px;
+            font-size: 16px;
+            width: 100%;
+        }
+
+        /* Chart Container Styling for Black BG */
+        #chart-container {
+            background-color: #000;
+            border-radius: 10px;
+            border: 1px solid #333;
+            height: 250px;
+            width: 100%;
+            position: relative; /* Needed for canvas positioning */
+        }
+        #chart-canvas {
+            display: block;
+            border-radius: 10px;
+        }
+
+
+        /* Rugpull Button Animation */
+        #withdraw-button:not(:disabled) {
+            transition: all 0.1s ease;
+            box-shadow: 0 4px 15px rgba(239, 68, 68, 0.4);
+        }
+        #withdraw-button:not(:disabled):hover {
+            box-shadow: 0 4px 20px rgba(239, 68, 68, 0.6);
+            transform: translateY(-2px);
+        }
+
+        /* Wallet Action Button Styling */
+        .action-button {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            width: 20%;
+        }
+        .action-icon {
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+
+<div id="iphone-shell">
+    <div id="phone-screen">
+        <!-- Dynamic Island -->
+        <div id="dynamic-island">
+             <svg id="island-icon" class="w-4 h-4 text-gray-300" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clip-rule="evenodd"/></svg>
+        </div>
+        
+        <!-- Tab Content Wrapper -->
+        <div id="tab-wrapper">
+            
+            <!-- Tab 0: Wallet -->
+            <div id="tab-wallet" class="tab-page app-wallet">
+                <div class="flex justify-between items-center mb-6">
+                    <div class="flex items-center space-x-2">
+                        <svg class="w-5 h-5 text-gray-400" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path d="M5 4a1 1 0 00-2 0v6a1 1 0 002 0V4zM11 4a1 1 0 00-2 0v12a1 1 0 002 0V4zM17 4a1 1 0 00-2 0v2a1 1 0 002 0V4zM12 14a1 1 0 00-2 0v2a1 1 0 002 0v-2zM6 10a1 1 0 00-2 0v2a1 1 0 002 0v-2zM18 6a1 1 0 00-2 0v2a1 1 0 002 0V6zM8 14a1 1 0 00-2 0v2a1 1 0 002 0v-2zM14 10a1 1 0 00-2 0v2a1 1 0 002 0v-2z"/></svg>
+                        <span class="text-sm text-gray-400 font-medium">Wallet 1</span>
+                    </div>
+                    <button onclick="navigateToTab(3)" class="text-gray-400 hover:text-white transition">
+                        <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M11.49 3.179a1 1 0 00-1.256-.477l-4.004 1.488a1 1 0 00-.477 1.256l1.488 4.004a1 1 0 001.256.477l4.004-1.488a1 1 0 00.477-1.256l-1.488-4.004zm2.464 5.925l-2.002 2.002-1.414-1.414 2.002-2.002 1.414 1.414zM10 18a8 8 0 100-16 8 8 0 000 16z" clip-rule="evenodd" fill-rule="evenodd"/></svg>
+                    </button>
+                </div>
+
+                <div class="text-center mb-8">
+                    <span class="text-lg text-gray-400 font-light">$</span>
+                    <span class="text-6xl font-extrabold text-white" id="total-balance">6,750.00</span> 
+                    <p class="text-sm text-green-400 font-semibold mt-1">+0.00% (24H)</p>
+                </div>
+
+                <div class="flex justify-around items-start mb-6">
+                    <!-- Placeholder buttons -->
+                    <button class="action-button">
+                        <div class="action-icon bg-green-500"><svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M10 18a8 8 0 100-16 8 8 0 000 16zm-1-8H6a1 1 0 000 2h3v3a1 1 0 002 0v-3h3a1 1 0 000-2h-3V7a1 1 0 00-2 0v3z"/></svg></div>
+                        <span class="text-xs font-medium text-gray-300">Deposit</span>
+                    </button>
+                    <button class="action-button">
+                        <div class="action-icon bg-red-500"><svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M10 18a8 8 0 100-16 8 8 0 000 16zm-1-8h-3a1 1 0 000 2h3v3a1 1 0 002 0v-3h3a1 1 0 000-2h-3V7a1 1 0 00-2 0v3z" clip-rule="evenodd" fill-rule="evenodd"/></svg></div>
+                        <span class="text-xs font-medium text-gray-300">Send</span>
+                    </button>
+                    <button class="action-button" onclick="navigateToTab(2)">
+                        <div class="action-icon bg-yellow-500"><svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M12.9 8.2l-3.2-3.2a1 1 0 00-1.4 0L5 8.2a1 1 0 001.4 1.4l1.6-1.6V15a1 1 0 002 0V8l1.6 1.6a1 1 0 001.4-1.4z"/></svg></div>
+                        <span class="text-xs font-medium text-gray-300">Tools</span>
+                    </button>
+                    <button class="action-button">
+                        <div class="action-icon bg-purple-500"><svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M17 12h-2V5H5v7H3l7 7 7-7zM7 7h6v5H7V7z"/></svg></div>
+                        <span class="text-xs font-medium text-gray-300">Swap</span>
+                    </button>
+                </div>
+
+                <h2 class="text-xl font-bold text-white mb-2 pt-2 border-t border-gray-700/50">Tokens</h2>
+
+                <div class="flex-grow overflow-y-auto pt-2 space-y-2">
+                    <!-- Solana (Base Asset) -->
+                    <div class="flex items-center space-x-3 bg-white/5 p-3 rounded-xl">
+                        <span class="w-8 h-8 rounded-full bg-purple-600 flex items-center justify-center font-bold text-sm">S</span>
+                        <div class="flex-grow">
+                            <p class="text-white font-semibold">Solana</p>
+                            <p class="text-xs text-gray-400">SOL</p>
+                        </div>
+                        <div class="text-right">
+                            <p class="text-white font-semibold">45.00 SOL</p>
+                            <p class="text-xs text-green-400 font-medium">$6,750.00</p>
+                        </div>
+                    </div>
+
+                    <!-- Meme Coin -->
+                    <div id="meme-coin-display" class="bg-white/5 p-3 rounded-xl">
+                        <!-- Content dynamically updated -->
+                        <div id="token-deployed-view" class="flex items-center space-x-3" style="display:none;">
+                            <span class="w-8 h-8 rounded-full bg-yellow-500 flex items-center justify-center font-bold text-sm">💎</span>
+                            <div class="flex-grow">
+                                <p class="text-white font-semibold" id="info-name-wallet">Token Name</p>
+                                <p class="text-xs text-gray-400" id="display-ticker-wallet">TICKER</p>
+                            </div>
+                            <div class="text-right">
+                                <p class="text-white font-semibold" id="info-supply-wallet">0 TICKER</p>
+                                <p class="text-xs text-yellow-400 font-medium" id="nano-price-wallet">$0.00</p>
+                            </div>
+                        </div>
+                        
+                        <!-- Not Deployed Prompt -->
+                        <div id="token-undeployed-view" class="text-center p-3">
+                            <p class="text-gray-400 mb-4">No meme coins deployed yet. Become a creator!</p>
+                            <button onclick="navigateToTab(4)" class="w-full py-3 bg-purple-600 rounded-lg text-white font-semibold hover:bg-purple-700 transition">
+                                Deploy New Token
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Tab 1: Market Data (Candlestick Chart & Market Watch) -->
+            <div id="tab-coin" class="tab-page app-coin">
+                <div class="flex justify-between items-center mb-4">
+                    <h1 class="text-3xl font-extrabold text-white" id="coin-title">NANO</h1>
+                    <span class="text-lg font-bold text-green-400">Deployed</span>
+                </div>
+                <p class="text-xs text-gray-400 mb-6">Simulated Candlestick Chart / <span id="display-ticker">$NANO</span></p>
+                
+                <div id="chart-container" class="mb-4">
+                    <!-- Canvas Chart will render here -->
+                    <canvas id="chart-canvas" width="353" height="250"></canvas>
+                </div>
+                
+                <!-- Main Price & Market Cap -->
+                <div class="flex justify-between items-end mb-4">
+                    <div class="text-left">
+                        <p class="text-sm text-gray-300">Market Cap</p>
+                        <p id="info-mcap-display" class="text-4xl font-extrabold text-white">$0.00</p>
+                    </div>
+                    <div class="text-right">
+                         <p class="text-sm text-gray-300">Last Close (SOL)</p>
+                        <p id="current-price" class="text-4xl font-extrabold text-green-400">0.00000000</p>
+                    </div>
+                </div>
+                
+                <!-- Bonding Curve Status / Buy Button Area -->
+                <div class="bg-gray-800 p-4 rounded-xl shadow-md space-y-3 mb-6">
+                    <p class="text-lg font-bold text-white border-b border-gray-700/50 pb-2">Pool & Launch Status</p>
+                    <div class="text-sm space-y-2 text-gray-300">
+                        <div class="flex justify-between">
+                            <p>Liquidity Pool:</p> 
+                            <span id="info-liquidity" class="font-semibold text-yellow-400">0 SOL</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <p>Total Supply:</p> 
+                            <span id="info-supply" class="font-semibold text-white">0</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <p id="price-status" class="font-semibold text-yellow-400">Status: Undefined</p>
+                            <span class="text-red-400 font-semibold">Taxes: 0% / 0%</span>
+                        </div>
+                    </div>
+                    <button class="w-full py-3 bg-green-600 rounded-lg font-bold text-white text-lg hover:bg-green-700 transition" disabled>
+                        BUY <span id="buy-ticker">$NANO</span> (Simulated)
+                    </button>
+                </div>
+
+                <!-- Fake Crypto Market Watch -->
+                <h2 class="text-xl font-bold text-white mb-2 pt-2 border-t border-gray-700/50">Market Watch</h2>
+                <div id="market-watch-list" class="space-y-2 pb-6">
+                    <!-- Market list items injected here -->
+                </div>
+
+            </div>
+
+            <!-- Tab 2: Liquidity Management (The Pull) -->
+            <div id="tab-vault" class="tab-page app-vault flex flex-col justify-center items-center text-center">
+                <h1 class="text-3xl font-extrabold mb-4 text-red-500">Liquidity Vault (memesolcoins.net)</h1>
+                <p class="text-xs text-gray-400 mb-8">Administrative Control Panel: Pool Withdrawal</p>
+
+                <div id="vault-display" class="w-full bg-black p-8 rounded-2xl shadow-inner border-2 border-red-700">
+                    <p class="text-sm text-gray-300">Total Liquid Assets Available for Withdrawal</p>
+                    <p id="vault-value" class="text-5xl font-extrabold text-yellow-400 mt-2">$0.00</p>
+                    <p class="text-xs text-red-500 mt-3 font-semibold">CRITICAL WARNING: This action removes 100% of the SOL liquidity, permanently destroying the trading pool (Rugpull).</p>
+                </div>
+                
+                <div id="pull-actions" class="w-full">
+                    <button id="withdraw-button" onclick="executeWithdrawal()" class="w-full mt-8 py-5 bg-red-900 rounded-2xl text-white font-bold text-xl shadow-2xl shadow-red-900/70 hover:bg-red-800 transition duration-150 disabled:bg-gray-800 disabled:text-gray-500 disabled:cursor-not-allowed">
+                        <span id="withdraw-button-text">🔒 Awaiting Launch</span>
+                    </button>
+                    <!-- Button to restart the loop -->
+                    <button id="reset-button" onclick="clearSessionAndNavigateToCreator()" class="w-full mt-4 py-4 bg-purple-600 rounded-2xl text-white font-bold text-xl shadow-lg shadow-purple-600/70 hover:bg-purple-700 transition duration-150 hidden">
+                        Start New Rug Pull!
+                    </button>
+                </div>
+                
+                <p id="withdrawal-status" class="text-center text-sm mt-4 text-yellow-500 font-medium"></p>
+                <div class="flex-grow"></div>
+            </div>
+
+            <!-- Tab 3: System Settings -->
+            <div id="tab-settings" class="tab-page app-settings">
+                <h1 class="text-4xl font-extrabold mb-8" id="settings-title">System Settings</h1>
+                
+                <div class="space-y-6 flex-grow overflow-y-auto">
+                    
+                    <!-- Group 1: Theme Preferences -->
+                    <div class="settings-group rounded-xl bg-gray-700/60 backdrop-blur-sm">
+                        <div class="p-4 border-b border-gray-700/50 flex items-center justify-between">
+                            <span class="font-semibold">Sim Speed</span>
+                            <div class="flex space-x-3 text-sm">
+                                <span class="text-gray-300">1s Tick Rate</span>
+                            </div>
+                        </div>
+                        <div class="p-4 flex items-center justify-between">
+                             <div class="flex items-center">
+                                <span class="font-semibold">Candle Interval</span>
+                            </div>
+                            <span class="text-sm text-gray-300">1 Minute</span>
+                        </div>
+                    </div>
+
+                    <!-- Group 4: Session Management -->
+                    <div class="settings-group rounded-xl bg-gray-700/60 backdrop-blur-sm">
+                        <div class="p-4 flex justify-between items-center">
+                            <div>
+                                <p class="font-semibold text-lg text-red-400">Clear Current Session</p>
+                                <p class="text-xs text-gray-400">Erase all contract data and market history.</p>
+                            </div>
+                            <button onclick="clearSessionAndNavigateToCreator()" class="px-4 py-2 bg-red-600 rounded-full text-sm font-semibold hover:bg-red-700">
+                                Wipe
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tab 4: Token Creation Screen (memesolcoins.net clone) -->
+            <div id="tab-creator" class="tab-page app-creator flex flex-col justify-center items-center">
+                <div class="w-full max-w-sm p-6 bg-gray-900 rounded-2xl shadow-2xl border-2 border-purple-500/50">
+                    <h1 class="text-3xl font-extrabold text-yellow-400 mb-2 text-center">Solana Token Creator</h1>
+                    <p class="text-sm text-gray-400 mb-8 text-center">Deploy your rugpull-ready coin in seconds!</p>
+
+                    <div class="space-y-6">
+                        <div>
+                            <label for="token-name" class="text-sm font-semibold block mb-1 text-gray-300">Token Name*</label>
+                            <input id="token-name" type="text" class="creator-input" placeholder="Ex: Solana Banana" value="Pepecoin" maxlength="20">
+                            <p class="text-xs text-gray-500 mt-1">This will be your coin's full name (Ex: Pepecoin).</p>
+                        </div>
+
+                        <div class="flex space-x-4">
+                            <div class="flex-1">
+                                <label for="token-symbol" class="text-sm font-semibold block mb-1 text-gray-300">Token Symbol*</label>
+                                <input id="token-symbol" type="text" class="creator-input uppercase" placeholder="Ex: NANO" value="PEPE" maxlength="5">
+                            </div>
+                            <div class="flex-1">
+                                <label for="token-supply" class="text-sm font-semibold block mb-1 text-gray-300">Supply*</label>
+                                <input id="token-supply" type="number" class="creator-input" placeholder="1000000000" value="420690000000">
+                            </div>
+                        </div>
+                        
+                        <div>
+                            <label for="token-liquidity" class="text-sm font-semibold block mb-1 text-gray-300">Liquidity (Your initial pool)*</label>
+                            <input id="token-liquidity" type="number" class="creator-input" placeholder="Ex: 10 SOL" value="10">
+                            <p class="text-xs text-gray-500 mt-1">This amount of SOL will be pooled with your tokens.</p>
+                        </div>
+                    </div>
+
+                    <button id="deploy-button" onclick="createToken()" class="w-full mt-8 py-4 bg-purple-600 rounded-xl text-white font-bold text-lg shadow-lg shadow-purple-600/50 hover:bg-purple-700 transition duration-150">
+                        Deploy Token & Launch Pool
+                    </button>
+                </div>
+            </div>
+        </div>
+
+    </div>
+    
+    <!-- Home Bar Container for Touch Swipe -->
+    <div id="home-bar-container">
+        <!-- Visual Home Bar -->
+        <div id="home-bar"></div>
+    </div>
+
+    <!-- Custom Modal for Alerts (replacing alert()) -->
+    <div id="custom-modal" class="fixed inset-0 bg-black/50 hidden items-center justify-center p-4 z-50">
+        <div class="bg-gray-800 p-6 rounded-xl shadow-2xl text-white w-full max-w-sm">
+            <h3 id="modal-title" class="text-xl font-bold mb-3">Notification</h3>
+            <p id="modal-content" class="text-sm mb-4 text-gray-300"></p>
+            <button onclick="document.getElementById('custom-modal').classList.add('hidden');" 
+                class="w-full py-2 bg-blue-600 rounded-lg font-semibold hover:bg-blue-700 transition">
+                OK
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+    // --- Global State and Constants ---
+    let currentTab = 0;
+    const totalTabs = 5; 
+    const tabWrapper = document.getElementById('tab-wrapper');
+    const shell = document.getElementById('iphone-shell');
+
+    // Protocol Simulation State
+    let protocol = {}; // Will be initialized in clearSession
+
+    // Charting variables
+    let chartData = []; 
+    let canvas, ctx;
+    const CHART_HEIGHT = 250; 
+    const CHART_PADDING_Y = 20;
+
+    // Charting Constants for fixed-width, spaced candles
+    const CANDLE_SPACING = 8; // Horizontal distance from center-to-center of candles
+    const CANDLE_BODY_WIDTH = 5; // Fixed body width for thin candles
+
+
+    // Fake Crypto Data for Market Watch (Tab 1)
+    const FAKE_CRYPTO_MARKET = [
+        { ticker: 'WEN', name: 'WEN Token', change: 420.69, color: 'green', emoji: '🐈' },
+        { ticker: 'BONK', name: 'BONK', change: 12.33, color: 'green', emoji: '🐕' },
+        { ticker: 'WIF', name: 'Dog with Hat', change: -5.11, color: 'red', emoji: '🎩' },
+        { ticker: 'PEPE', name: 'Pepecoin', change: 2.89, color: 'green', emoji: '🐸' },
+        { ticker: 'JUP', name: 'Jupiter', change: -0.45, color: 'red', emoji: '🪐' },
+        { ticker: 'BOME', name: 'Book of Meme', change: 1.05, color: 'green', emoji: '📚' },
+    ];
+    
+    // Real Coin Data for random defaults/placeholders
+    const COINS = [
+        { name: 'Ethereum', symbol: 'ETH' },
+        { name: 'Dogecoin', symbol: 'DOGE' },
+        { name: 'Solana', symbol: 'SOL' },
+        { name: 'Shiba Inu', symbol: 'SHIB' },
+        { name: 'Cardano', symbol: 'ADA' },
+    ];
+
+
+    // Swipe State
+    let startX = 0;
+    let currentTranslateX = 0;
+    let isSwiping = false;
+    const swipeThreshold = 60; // Pixels to trigger a swipe
+
+    // --- Core UI Functions ---
+
+    /**
+     * Shows a custom modal message (replaces alert()).
+     */
+    function showMessage(content, type = 'blue', title = 'Notification') {
+        const modal = document.getElementById('custom-modal');
+        document.getElementById('modal-title').textContent = title;
+        document.getElementById('modal-content').textContent = content;
+        
+        const button = modal.querySelector('button');
+        button.classList.remove('bg-blue-600', 'bg-green-600', 'bg-red-600');
+        if (type === 'green') button.classList.add('bg-green-600');
+        else if (type === 'red') button.classList.add('bg-red-600');
+        else button.classList.add('bg-blue-600');
+        
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+    }
+
+    /**
+     * Navigates the view to a specific tab index (0-4).
+     */
+    function navigateToTab(index, instant = false) {
+        if (index < 0) index = totalTabs - 1;
+        if (index >= totalTabs) index = 0;
+
+        currentTab = index;
+        // Calculate based on 5 tabs (20% width each)
+        currentTranslateX = -currentTab * (100 / totalTabs); 
+        
+        if (instant) {
+            tabWrapper.style.transition = 'none';
+        } else {
+            tabWrapper.style.transition = 'transform 0.3s cubic-bezier(0.25, 0.1, 0.25, 1)';
+        }
+        
+        tabWrapper.style.transform = `translateX(${currentTranslateX}%)`;
+        
+        if (instant) {
+            void tabWrapper.offsetWidth; 
+            tabWrapper.style.transition = 'transform 0.3s cubic-bezier(0.25, 0.1, 0.25, 1)';
+        }
+
+        updateCoinDisplay();
+
+        // Handle chart resizing when navigating to the Coin tab
+        if (currentTab === 1) {
+            // Re-render the canvas chart
+            if (canvas) {
+                // Resize canvas element to fill container width
+                const container = document.getElementById('chart-container');
+                canvas.width = container.offsetWidth;
+                renderChartCanvas(); 
+            }
+        }
+    }
+
+    /**
+     * Calculates and updates the total dollar balance in the wallet tab.
+     */
+    function updateWalletBalance() {
+        // SOL price is fixed at $150
+        const solValue = protocol.solanaHoldings * protocol.solPrice; 
+        // Use lastClosePrice for portfolio calculation
+        const nanoValue = protocol.supply * protocol.lastClosePrice * protocol.solPrice; 
+        
+        const totalBalance = solValue + (protocol.deployed ? nanoValue : 0);
+
+        // Update main total balance
+        document.getElementById('total-balance').textContent = totalBalance.toLocaleString('en-US', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        });
+        
+        const nanoPriceElement = document.getElementById('nano-price-wallet');
+        if (nanoPriceElement) {
+            // Price displayed is the dollar value of the user's holdings
+            nanoPriceElement.textContent = `$${(protocol.deployed ? nanoValue : 0).toFixed(2).toLocaleString()}`;
+        }
+    }
+
+
+    /**
+     * Updates market data and wallet token info.
+     */
+    function updateCoinDisplay() {
+        
+        // 1. Update Wallet Tab Visibility
+        const deployedView = document.getElementById('token-deployed-view');
+        const undeployedView = document.getElementById('token-undeployed-view');
+        if (protocol.deployed) {
+            if(deployedView) deployedView.style.display = 'flex';
+            if(undeployedView) undeployedView.style.display = 'none';
+        } else {
+            if(deployedView) deployedView.style.display = 'none';
+            if(undeployedView) undeployedView.style.display = 'block';
+        }
+
+        updateWalletBalance(); 
+        
+        // Render the canvas chart
+        renderChartCanvas(); 
+        
+        // --- Get critical Vault Elements ---
+        const statusElement = document.getElementById('price-status');
+        const withdrawButton = document.getElementById('withdraw-button');
+        const resetButton = document.getElementById('reset-button');
+        const withdrawButtonTextElement = document.getElementById('withdraw-button-text');
+
+        // Check if elements are present before manipulating them (safety)
+        if (!statusElement || !withdrawButton || !resetButton || !withdrawButtonTextElement) {
+            console.error("Critical elements for display missing.");
+            return;
+        }
+
+        // Handle Vault Button Visibility
+        if (protocol.liquidityWithdrawn) {
+            withdrawButton.classList.add('hidden');
+            resetButton.classList.remove('hidden');
+        } else {
+            withdrawButton.classList.remove('hidden');
+            resetButton.classList.add('hidden');
+        }
+
+
+        if (!protocol.deployed) {
+            document.getElementById('coin-title').textContent = 'MARKET';
+            document.getElementById('current-price').textContent = 'N/A';
+            document.getElementById('info-mcap-display').textContent = '$0.00';
+            document.getElementById('info-supply').textContent = 'N/A';
+            document.getElementById('info-liquidity').textContent = 'N/A';
+            statusElement.textContent = 'Status: Waiting for Token';
+            withdrawButtonTextElement.textContent = '🔒 Awaiting Launch';
+            withdrawButton.disabled = true;
+            document.getElementById('vault-value').textContent = `$0.00`;
+            return;
+        }
+
+
+        // Market cap is calculated based on the last close price * total supply
+        const mc = protocol.lastClosePrice * protocol.supply * protocol.solPrice; 
+
+
+        // Update Market Data Tab 
+        document.getElementById('coin-title').textContent = protocol.ticker;
+        document.getElementById('buy-ticker').textContent = `$${protocol.ticker}`;
+        document.getElementById('display-ticker').textContent = protocol.ticker;
+        
+        // Show last close price in SOL (or the base asset)
+        document.getElementById('current-price').textContent = protocol.lastClosePrice.toFixed(8);
+        document.getElementById('info-mcap-display').textContent = `$${mc.toFixed(2).toLocaleString()}`;
+        document.getElementById('info-supply').textContent = protocol.supply.toLocaleString();
+        document.getElementById('info-liquidity').textContent = `${protocol.liquidity.toFixed(1)} SOL`;
+
+        // Update Wallet Token Info
+        document.getElementById('info-name-wallet').textContent = protocol.name;
+        document.getElementById('display-ticker-wallet').textContent = protocol.ticker;
+        document.getElementById('info-supply-wallet').textContent = `${protocol.supply.toLocaleString()} ${protocol.ticker}`;
+        
+        
+        // Status updates and Button text
+        if (protocol.liquidityWithdrawn) {
+            statusElement.textContent = `Status: POOL RUGGED!`;
+            statusElement.className = `text-sm text-red-500 font-semibold`;
+            withdrawButtonTextElement.textContent = '💀 RUGPULL EXECUTED 💀';
+            withdrawButton.disabled = true;
+        } else if (protocol.hypeActive) {
+            const multiplier = (protocol.lastClosePrice / protocol.initialPrice);
+            statusElement.textContent = `Status: PROTOCOL PUMPING (x${multiplier.toFixed(1)})`;
+            statusElement.className = `text-sm text-green-400 font-semibold`;
+            withdrawButtonTextElement.textContent = '🚨 EXECUTE 100% RUGPULL 🚨';
+            withdrawButton.disabled = false;
+        } else {
+            statusElement.textContent = `Status: Deployed, Stable`;
+            statusElement.className = `text-sm text-yellow-400 font-semibold`;
+            // If not active, the button triggers the hype cycle
+            withdrawButtonTextElement.textContent = '🚀 LAUNCH HYPE CYCLE 🚀'; 
+            withdrawButton.disabled = false;
+        }
+        
+        // Update Liquidity Management Value
+        document.getElementById('vault-value').textContent = `$${(protocol.liquidity * protocol.solPrice).toFixed(2).toLocaleString()}`;
+    }
+    
+    // --- Phase 1: Token Creation ---
+
+    function createToken() {
+        const name = document.getElementById('token-name').value.trim();
+        const symbol = document.getElementById('token-symbol').value.trim().toUpperCase();
+        const supply = parseFloat(document.getElementById('token-supply').value);
+        const liquidity = parseFloat(document.getElementById('token-liquidity').value);
+        
+        if (!name || name.length < 3) {
+            showMessage('Token Name must be at least 3 characters.', 'red', 'Validation Error');
+            return;
+        }
+        if (!symbol || symbol.length < 3 || symbol.length > 5) {
+            showMessage('Token Symbol must be 3-5 uppercase characters.', 'red', 'Validation Error');
+            return;
+        }
+        if (isNaN(supply) || supply <= 100000) {
+            showMessage('Supply must be a reasonable number (min 100,000).', 'red', 'Validation Error');
+            return;
+        }
+        if (isNaN(liquidity) || liquidity < 1 || liquidity > protocol.solanaHoldings) {
+            showMessage(`Initial Liquidity must be between 1 and ${protocol.solanaHoldings} SOL. (You have ${protocol.solanaHoldings} SOL)`, 'red', 'Validation Error');
+            return;
+        }
+
+        // Check if an active token is already running
+        if (protocol.deployed && !protocol.liquidityWithdrawn) {
+            showMessage('Please clear the current session or execute the rugpull before deploying a new token.', 'red', 'Token Active');
+            return;
+        }
+
+        // Calculate initial price: SOL / Token Supply (Price is denominated in SOL)
+        const initialPrice = (liquidity / supply);
+
+        // Update Protocol State
+        protocol.name = name;
+        protocol.ticker = symbol;
+        protocol.supply = supply;
+        protocol.liquidity = liquidity;
+        protocol.lastPrice = initialPrice;
+        protocol.initialPrice = initialPrice;
+        protocol.lastClosePrice = initialPrice;
+        protocol.lastCandleTime = Date.now();
+        protocol.deployed = true;
+        protocol.liquidityWithdrawn = false;
+        
+        // Consume the SOL used for liquidity from the user's holdings
+        protocol.solanaHoldings -= liquidity; 
+
+        // Initialize the chart data with the first candle
+        chartData = [];
+        const initialCandle = {
+            time: protocol.lastCandleTime,
+            open: protocol.initialPrice,
+            high: protocol.initialPrice,
+            low: protocol.initialPrice,
+            close: protocol.initialPrice,
+        };
+        chartData.push(initialCandle);
+        renderChartCanvas();
+
+        // 1. Start the pump immediately
+        startHypeCycle(); 
+        
+        // 2. Navigate to the market chart tab
+        navigateToTab(1); 
+        
+        showMessage(`Token $${protocol.ticker} deployed! Hype Cycle started. View the chart in the Market Tab.`, 'green', 'Deployment Success');
+    }
+
+    // --- Swipe Navigation Logic ---
+
+    const homeBar = document.getElementById('home-bar-container');
+    
+    if (homeBar) {
+        // Consolidated pointer event handlers for touch and mouse
+        const pointerDown = (e) => {
+            isSwiping = true;
+            startX = e.clientX || e.touches[0].clientX; // Handles both mouse and touch
+            tabWrapper.style.transition = 'none'; 
+            // Prevent accidental scrolling for touch
+            if (e.pointerType === 'touch' || e.touches) e.preventDefault(); 
+        };
+
+        const pointerMove = (e) => {
+            if (!isSwiping) return;
+
+            const clientX = e.clientX || e.touches[0].clientX;
+            const diffX = clientX - startX;
+            const screenWidth = shell.offsetWidth - 20; 
+            // Scaling factor 5 tabs (20% width each)
+            const currentPx = currentTranslateX * screenWidth / 100 * (totalTabs / 4); 
+            const newTranslateX = (currentPx + diffX) * 100 / screenWidth * (4 / totalTabs); 
+            
+            tabWrapper.style.transform = `translateX(${newTranslateX}%)`;
+        };
+
+        const pointerUp = (e) => {
+            if (!isSwiping) return;
+            isSwiping = false;
+
+            const endX = e.clientX || (e.changedTouches ? e.changedTouches[0].clientX : startX);
+            const diff = endX - startX;
+
+            let targetTab = currentTab;
+
+            if (diff > swipeThreshold) { 
+                targetTab = currentTab - 1;
+            } else if (diff < -swipeThreshold) { 
+                targetTab = currentTab + 1;
+            } 
+            
+            navigateToTab(targetTab); 
+        };
+
+        homeBar.addEventListener('mousedown', pointerDown);
+        homeBar.addEventListener('touchstart', pointerDown);
+
+        window.addEventListener('mousemove', pointerMove);
+        window.addEventListener('touchmove', pointerMove);
+
+        window.addEventListener('mouseup', pointerUp);
+        window.addEventListener('touchend', pointerUp);
+    }
+
+    // --- Protocol Logic (Simulation) ---
+
+    function startHypeCycle() {
+        if (!protocol.deployed) {
+             showMessage('You must deploy a token first! Go to the "memesolcoins" tab (swipe right to the last tab, or use the button in the wallet).', 'red', 'Action Blocked');
+             return;
+        }
+        if (protocol.liquidityWithdrawn) {
+             showMessage('The pool has already been liquidated!', 'red', 'Error');
+             return;
+        }
+        if (protocol.hypeActive && protocol.hypeInterval) return;
+
+        // Ensure price is at initial launch state
+        if (protocol.lastPrice < protocol.initialPrice) {
+             protocol.lastPrice = protocol.initialPrice;
+        }
+        protocol.hypeActive = true;
+        
+        // Start simulation timer
+        protocol.hypeInterval = setInterval(hypeSimulation, 1000);
+
+        const statusElement = document.getElementById('withdrawal-status');
+        if (statusElement) {
+            statusElement.textContent = 'Hype Cycle Initialized. Price is PUMPING!';
+        }
+        
+        updateCoinDisplay(); // Update button text and status
+    }
+
+    function hypeSimulation() {
+        if (!protocol.hypeActive) {
+            if (protocol.hypeInterval) clearInterval(protocol.hypeInterval);
+            protocol.hypeInterval = null;
+            return;
+        }
+
+        // Time step for the new candle (simulated every 1 second)
+        protocol.timeStep++;
+
+        // Get the last candle's close price
+        const lastCandle = chartData[chartData.length - 1];
+        const open = lastCandle ? lastCandle.close : protocol.initialPrice;
+
+        // Base trend: 0.5% to 5.5% up
+        let baseChange = 1 + (Math.random() * 0.05) + 0.005; 
+        // Max 3% volatility
+        let volatility = Math.random() * 0.03; 
+
+        // Apply slow growth trend
+        let newClose = open * baseChange;
+
+        // Calculate High/Low based on open and close
+        const potentialHigh = Math.max(open, newClose) * (1 + volatility * 0.5);
+        const potentialLow = Math.min(open, newClose) * (1 - volatility * 0.5);
+
+        // Final adjustments: ensure candle makes sense
+        const high = potentialHigh;
+        const low = potentialLow;
+        const close = newClose;
+
+        // Update state for next candle
+        protocol.lastPrice = close;
+        protocol.lastClosePrice = close;
+        
+        // Add a new candle every 5 steps (simulating a 1-minute candle every 5 seconds)
+        if (protocol.timeStep % 5 === 0) {
+            const newTime = Date.now();
+            const newCandle = { time: newTime, open: open, high: high, low: low, close: close };
+            chartData.push(newCandle);
+        } else {
+             // For simplicity, just update the last candle's high/low/close
+            if(chartData.length > 0) {
+                const currentCandle = chartData[chartData.length - 1];
+                currentCandle.high = Math.max(currentCandle.high, high);
+                currentCandle.low = Math.min(currentCandle.low, low);
+                currentCandle.close = close;
+            }
+        }
+        
+        // Update chart and UI
+        renderChartCanvas(); 
+        updateCoinDisplay(); 
+    }
+
+    /**
+     * Executes the rugpull: stops price simulation, sets price to zero, and locks the state.
+     */
+    function executeWithdrawal() {
+        if (protocol.liquidityWithdrawn) return;
+        if (!protocol.hypeActive) {
+            startHypeCycle(); // Auto-start cycle if not running
+            return;
+        }
+
+        if (protocol.hypeInterval) clearInterval(protocol.hypeInterval);
+        protocol.hypeInterval = null;
+        protocol.hypeActive = false;
+        protocol.liquidityWithdrawn = true;
+        
+        // 100% of the SOL liquidity is secured
+        const finalValueSecured = (protocol.liquidity * protocol.solPrice); 
+        
+        // The SOL returns to the user's holdings
+        protocol.solanaHoldings += protocol.liquidity;
+
+        const vaultValueElement = document.getElementById('vault-value');
+        const withdrawalStatusElement = document.getElementById('withdrawal-status');
+        const withdrawButton = document.getElementById('withdraw-button');
+        const resetButton = document.getElementById('reset-button');
+
+
+        if (vaultValueElement) {
+            vaultValueElement.textContent = `$${finalValueSecured.toFixed(2).toLocaleString()}`;
+        }
+        if (withdrawalStatusElement) {
+            withdrawalStatusElement.textContent = `💀 100% RUGPULL COMPLETE! $${finalValueSecured.toFixed(2).toLocaleString()} secured.`;
+            withdrawalStatusElement.className = `text-center text-sm mt-4 text-red-500 font-bold`;
+        }
+        
+        // Hide pull button, show reset button for the loop
+        withdrawButton.classList.add('hidden');
+        resetButton.classList.remove('hidden');
+
+
+        // --- The Rugpull Candlestick ---
+        const lastPrice = protocol.lastClosePrice;
+        // Crash to 1/10000th of the initial price
+        const crashPrice = protocol.initialPrice / 10000; 
+
+        // Create a massive red candle for the crash
+        const crashCandle = {
+            time: Date.now(),
+            open: lastPrice,
+            high: lastPrice * 1.001, // Small flicker at the top
+            low: crashPrice,
+            close: crashPrice,
+        };
+
+        chartData.push(crashCandle);
+        
+        // Update final state
+        protocol.lastPrice = crashPrice;
+        protocol.lastClosePrice = crashPrice;
+        
+        renderChartCanvas();
+        updateCoinDisplay();
+        showMessage('🚨 100% RUGPULL SUCCESSFUL! All SOL liquidity has been removed, and the price of ' + protocol.ticker + ' has crashed to near zero. Start your next coin!', 'red', 'RUGPULL EXECUTED');
+    }
+
+    function generateRandomDefaults() {
+        const randomCoin = COINS[Math.floor(Math.random() * COINS.length)];
+        // Generate a large but fake supply
+        const supply = Math.floor(Math.random() * 900000000000) + 10000000000;
+        
+        document.getElementById('token-name').value = randomCoin.name;
+        document.getElementById('token-symbol').value = randomCoin.symbol;
+        document.getElementById('token-supply').value = supply;
+        document.getElementById('token-liquidity').value = '10';
+    }
+
+    /**
+     * Clears session and navigates to the creator tab (used for the loop restart).
+     */
+    window.clearSessionAndNavigateToCreator = function() {
+        clearSession(true);
+    }
+
+
+    function clearSession(navigateToCreator = false) {
+        if (protocol.hypeInterval) clearInterval(protocol.hypeInterval);
+        
+        // Reset Protocol State
+        protocol = {
+            name: "Token Name", ticker: "TICKER", supply: 0, solanaHoldings: 45.00, liquidity: 0, 
+            lastPrice: 0.00, hypeActive: false, liquidityWithdrawn: false, deployed: false, hypeInterval: null,
+            initialPrice: 0.000001, solPrice: 150, timeStep: 0, lastClosePrice: 0.00, lastCandleTime: 0
+        };
+        chartData = [];
+
+        // Reset UI inputs to new random values
+        generateRandomDefaults();
+        
+        const withdrawalStatusElement = document.getElementById('withdrawal-status');
+        if (withdrawalStatusElement) {
+             withdrawalStatusElement.textContent = '';
+             withdrawalStatusElement.className = `text-center text-sm mt-4 text-yellow-500 font-medium`;
+        }
+        
+        // Reset Vault buttons
+        const withdrawButton = document.getElementById('withdraw-button');
+        const resetButton = document.getElementById('reset-button');
+        if (withdrawButton) withdrawButton.classList.remove('hidden');
+        if (resetButton) resetButton.classList.add('hidden');
+
+
+        // Set up the initial canvas state and render empty chart
+        initChartCanvas();
+
+        updateCoinDisplay();
+        
+        if (navigateToCreator) {
+            navigateToTab(4, true); // Go directly to Creator Tab (4)
+            showMessage('Session cleared. Ready for your next deployment!', 'green', 'Restarting Loop');
+        } else {
+             // Initial Load Case
+             navigateToTab(0, true); 
+        }
+
+        window.appInitialized = true;
+    }
+
+    // --- Charting Functions (Canvas) ---
+
+    /**
+     * Initializes the canvas and context.
+     */
+    function initChartCanvas() {
+        canvas = document.getElementById('chart-canvas');
+        ctx = canvas.getContext('2d');
+        
+        const container = document.getElementById('chart-container');
+        // Set canvas dimensions based on container and fixed height
+        canvas.width = container ? container.offsetWidth : 353;
+        canvas.height = CHART_HEIGHT; 
+
+        // Re-render on resize (for responsiveness inside the fixed shell)
+        window.removeEventListener('resize', initChartCanvas);
+        window.addEventListener('resize', () => {
+             if (container) canvas.width = container.offsetWidth;
+             renderChartCanvas();
+        });
+    }
+
+    /**
+     * Renders the candlestick data to the canvas.
+     */
+    function renderChartCanvas() {
+        if (!ctx) return;
+
+        const W = canvas.width;
+        const H = canvas.height;
+        
+        // 1. Clear Canvas
+        ctx.fillStyle = '#000'; // True black background
+        ctx.fillRect(0, 0, W, H);
+
+        if (chartData.length === 0) {
+            ctx.fillStyle = '#333';
+            ctx.font = '16px Inter';
+            ctx.textAlign = 'center';
+            ctx.fillText('Deploy a Token to view the chart', W / 2, H / 2);
+            return;
+        }
+
+        // --- Data Scaling ---
+        // Find min/max price for vertical scaling
+        let minPrice = Infinity;
+        let maxPrice = -Infinity;
+
+        // Calculate visible candles based on canvas width and spacing
+        // Reserve 1 CANDLE_SPACING worth of space for right padding
+        const visibleCandlesLimit = Math.floor(W / CANDLE_SPACING) - 1; 
+        
+        // Slice the data to show only the latest candles
+        const startIndex = Math.max(0, chartData.length - visibleCandlesLimit);
+        const visibleData = chartData.slice(startIndex);
+        
+        if (visibleData.length === 0) return;
+
+        visibleData.forEach(c => {
+            minPrice = Math.min(minPrice, c.low);
+            maxPrice = Math.max(maxPrice, c.high);
+        });
+        
+        const priceRange = maxPrice - minPrice;
+        
+        // If the price range is tiny (e.g., initial flat chart), give it some padding
+        const effectiveRange = priceRange > 0 ? priceRange : (maxPrice * 0.05);
+        const lowBound = minPrice - effectiveRange * 0.1;
+        const highBound = maxPrice + effectiveRange * 0.1;
+        const scaleRange = highBound - lowBound;
+        const drawableHeight = H - (CHART_PADDING_Y * 2);
+
+        // Price to Y-coordinate function
+        const priceToY = (price) => {
+            const normalizedPrice = (price - lowBound) / scaleRange;
+            // Invert Y axis: 0 is top (high price), H is bottom (low price)
+            return H - CHART_PADDING_Y - (normalizedPrice * drawableHeight); 
+        };
+        
+
+        // --- Drawing Candlesticks ---
+        const RIGHT_PADDING = 10;
+        let xCenter = W - RIGHT_PADDING; // Center of the last (most recent) candle
+        
+        // Loop backwards through visible data (most recent data drawn last)
+        for (let i = visibleData.length - 1; i >= 0; i--) {
+            const candle = visibleData[i];
+
+            // Determine up/down color
+            const isUp = candle.close >= candle.open;
+            ctx.fillStyle = isUp ? '#10B981' : '#EF4444'; // Green or Red
+            
+            // Body (rectangle)
+            const bodyY = priceToY(Math.max(candle.open, candle.close));
+            const bodyHeight = Math.abs(priceToY(candle.open) - priceToY(candle.close));
+            
+            // Draw body, centered around xCenter, using fixed width
+            ctx.fillRect(xCenter - CANDLE_BODY_WIDTH / 2, bodyY, CANDLE_BODY_WIDTH, Math.max(1, bodyHeight));
+
+            // Wick (line)
+            const wickYHigh = priceToY(candle.high);
+            const wickYLow = priceToY(candle.low);
+            
+            ctx.strokeStyle = ctx.fillStyle; // Wick color matches body color
+            ctx.lineWidth = 1;
+            
+            ctx.beginPath();
+            // Draw the line from high to low, centered at xCenter
+            ctx.moveTo(xCenter, wickYHigh);
+            ctx.lineTo(xCenter, wickYLow);
+            ctx.stroke();
+
+            // Move X center to the left for the next older candle
+            xCenter -= CANDLE_SPACING;
+
+            // Stop drawing if we move past the left edge
+            if (xCenter < 0) break;
+        }
+        
+        // --- Drawing Price Scale (Labels) ---
+        ctx.fillStyle = '#6B7280'; // Gray text
+        ctx.font = '10px Inter';
+        ctx.textAlign = 'right';
+        ctx.textBaseline = 'middle';
+
+        // Draw 3 price lines (High, Mid, Low)
+        const labels = 3;
+        for (let i = 0; i < labels; i++) {
+            const normalizedPosition = i / (labels - 1); // 0.0, 0.5, 1.0
+            const price = lowBound + (1 - normalizedPosition) * scaleRange;
+            const y = CHART_PADDING_Y + normalizedPosition * drawableHeight;
+            
+            ctx.fillText(price.toFixed(8), W - 5, y);
+            
+            // Draw grid lines
+            ctx.strokeStyle = '#262626';
+            ctx.setLineDash([2, 2]);
+            ctx.beginPath();
+            ctx.moveTo(0, y);
+            ctx.lineTo(W, y);
+            ctx.stroke();
+        }
+        ctx.setLineDash([]); // Reset line dash
+    }
+
+    /**
+     * Renders the fake market watch list.
+     */
+    function renderMarketWatch() {
+        const listContainer = document.getElementById('market-watch-list');
+        if (!listContainer) return;
+        let html = '';
+
+        FAKE_CRYPTO_MARKET.forEach(coin => {
+            const colorClass = coin.color === 'green' ? 'text-green-400' : 'text-red-400';
+            const sign = coin.color === 'green' ? '+' : '';
+            
+            html += `
+                <div class="flex items-center space-x-3 bg-white/5 p-3 rounded-xl">
+                    <span class="w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center font-bold text-lg">${coin.emoji}</span>
+                    <div class="flex-grow">
+                        <p class="text-white font-semibold">${coin.name}</p>
+                        <p class="text-xs text-gray-400">${coin.ticker}</p>
+                    </div>
+                    <div class="text-right">
+                        <p class="font-semibold text-white">N/A</p>
+                        <p class="text-xs ${colorClass} font-medium">${sign}${coin.change.toFixed(2)}%</p>
+                    </div>
+                </div>
+            `;
+        });
+
+        listContainer.innerHTML = html;
+    }
+
+    // --- Initialization ---
+
+    window.onload = function() {
+        // Initialize the canvas and set up the starting state
+        initChartCanvas();
+        renderMarketWatch();
+        clearSession(); // Clears protocol and sets initial UI state
+    };
+
+</script>
